@@ -57,7 +57,7 @@ const PaymentVerificationList = ({ payments, onRefresh }) => {
               <th style={{ padding: '12px 16px', textAlign: 'left' }}>Date</th>
               <th style={{ padding: '12px 16px', textAlign: 'left' }}>Payment Confirmation</th>
               <th style={{ padding: '12px 16px', textAlign: 'left' }}>Actions</th>
-              </tr>
+            </tr>
           </thead>
           <tbody>
             {payments.map(payment => (
@@ -81,7 +81,9 @@ const PaymentVerificationList = ({ payments, onRefresh }) => {
                 </td>
                 <td style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', maxWidth: '300px', wordBreak: 'break-word' }}>
                   {payment.metadata?.paymentConfirmation ? (
-                    <div style={{ whiteSpace: 'pre-wrap' }}>{payment.metadata.paymentConfirmation}</div>
+                    <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '12px', background: '#f7fafc', padding: '8px', borderRadius: '6px' }}>
+                      {payment.metadata.paymentConfirmation}
+                    </div>
                   ) : (
                     <span style={{ color: '#a0aec0', fontSize: '12px' }}>No confirmation provided</span>
                   )}
