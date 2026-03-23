@@ -66,10 +66,18 @@ const PaymentVerificationList = ({ payments, onRefresh }) => {
               <th style={{ padding: '12px 16px' }}>Date</th>
               <th style={{ padding: '12px 16px' }}>Payment Confirmation</th>
               <th style={{ padding: '12px 16px' }}>Actions</th>
-             </tr>
+               </tr>
           </thead>
           <tbody>
             {payments.map(payment => {
+              // Debug: Log what we have
+              console.log('Payment:', {
+                id: payment._id,
+                hasScreenshot: !!payment.screenshotUrl,
+                hasMessage: !!(payment.metadata?.paymentConfirmation),
+                message: payment.metadata?.paymentConfirmation
+              });
+              
               const hasScreenshot = payment.screenshotUrl && payment.screenshotUrl !== null;
               const hasMessage = payment.metadata?.paymentConfirmation && payment.metadata.paymentConfirmation !== null;
               const imageUrl = getImageUrl(payment.screenshotUrl);
@@ -93,7 +101,7 @@ const PaymentVerificationList = ({ payments, onRefresh }) => {
                   <td style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', fontSize: '13px' }}>
                     {formatDate(payment.createdAt)}
                   </td>
-                  <td style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', maxWidth: '300px', wordBreak: 'break-word' }}>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', maxWidth: '350px', wordBreak: 'break-word' }}>
                     {hasScreenshot ? (
                       <button
                         onClick={() => setViewImage(imageUrl)}
@@ -109,8 +117,20 @@ const PaymentVerificationList = ({ payments, onRefresh }) => {
                         📸 View Screenshot
                       </button>
                     ) : hasMessage ? (
-                      <div style={{ whiteSpace: 'pre-wrap', maxHeight: '100px', overflow: 'auto', background: '#f7fafc', padding: '8px', borderRadius: '4px' }}>
-                        {payment.metadata.paymentConfirmation}
+                      <div style={{ 
+                        backgroundColor: '#f7fafc', 
+                        padding: '10px', 
+                        borderRadius: '6px',
+                        border: '1px solid #e2e8f0',
+                        maxHeight: '150px',
+                        overflow: 'auto'
+                      }}>
+                        <div style={{ fontWeight: '600', marginBottom: '6px', fontSize: '12px', color: '#4a5568' }}>
+                          💬 Confirmation Message:
+                        </div>
+                        <div style={{ fontSize: '13px', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+                          {payment.metadata.paymentConfirmation}
+                        </div>
                       </div>
                     ) : (
                       <span style={{ color: '#a0aec0', fontSize: '12px' }}>No confirmation</span>
