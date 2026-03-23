@@ -7,13 +7,15 @@ import { formatKES, formatDate } from '../../utils/helpers';
 const DocumentManager = ({ documents, categories, onRefresh }) => {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [uploadMethod, setUploadMethod] = useState('file'); // 'file' or 'url'
   const [form, setForm] = useState({
     title: '',
     description: '',
     category: '',
     isFree: false,
     price: '',
-    file: null
+    file: null,
+    externalUrl: ''
   });
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -45,13 +47,15 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
 
   const openCreate = () => {
     setEditing(null);
+    setUploadMethod('file');
     setForm({
       title: '',
       description: '',
       category: categories[0]?._id || '',
       isFree: false,
       price: '',
-      file: null
+      file: null,
+      externalUrl: ''
     });
     setError('');
     setUploadProgress(0);
@@ -60,13 +64,15 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
 
   const openEdit = (doc) => {
     setEditing(doc);
+    setUploadMethod(doc.fileUrl && !doc.fileInfo ? 'url' : 'file');
     setForm({
       title: doc.title,
       description: doc.description || '',
       category: doc.category?._id || doc.category,
       isFree: doc.isFree,
       price: doc.price,
-      file: null
+      file: null,
+      externalUrl: doc.fileUrl || ''
     });
     setError('');
     setUploadProgress(0);
@@ -86,9 +92,15 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
       setError('Price must be greater than 0 for paid items');
       return false;
     }
-    if (!editing && !form.file) {
-      setError('File is required for new documents');
-      return false;
+    if (!editing) {
+      if (uploadMethod === 'file' && !form.file) {
+        setError('File is required for new documents');
+        return false;
+      }
+      if (uploadMethod === 'url' && !form.externalUrl.trim()) {
+        setError('External URL is required');
+        return false;
+      }
     }
     return true;
   };
@@ -102,8 +114,8 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
     try {
       let fileUrl = null;
 
-      // If a file is selected, upload it to GitHub
-      if (form.file) {
+      // If uploading a file, send to GitHub
+      if (uploadMethod === 'file' && form.file) {
         const uploadFormData = new FormData();
         uploadFormData.append('file', form.file);
 
@@ -117,18 +129,20 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
           timeout: 600000,
           headers: { 'Content-Type': 'multipart/form-data' }
         });
-
         fileUrl = uploadResponse.data.url;
+      } else if (uploadMethod === 'url') {
+        fileUrl = form.externalUrl.trim();
+      } else if (editing && editing.fileUrl) {
+        fileUrl = editing.fileUrl; // keep existing URL when editing without changing file
       }
 
-      // Prepare the item data
       const itemData = {
         title: form.title.trim(),
         description: form.description,
         category: form.category,
         isFree: form.isFree,
         price: form.isFree ? 0 : parseFloat(form.price),
-        fileUrl,  // store GitHub URL
+        fileUrl
       };
 
       if (editing) {
@@ -147,7 +161,7 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
         errorMessage = 'Upload timeout. Please try again.';
       } else if (error.response?.status === 413) {
-        errorMessage = 'File too large for GitHub (max 2GB).';
+        errorMessage = 'File too large for server. Use External URL option.';
       } else if (error.response) {
         errorMessage = error.response.data?.message || `Error ${error.response.status}`;
       } else if (error.request) {
@@ -183,20 +197,11 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
   const columns = [
     { header: 'Title', accessor: 'title' },
     { header: 'Category', accessor: (row) => row.category?.name || 'N/A' },
-    {
-      header: 'Type',
-      accessor: (row) => {
-        const ext = row.fileInfo?.extension?.toLowerCase();
-        if (ext === '.zip' || ext === '.rar') return <span>🗜️ Archive</span>;
-        return <span>📄 Document</span>;
-      }
-    },
+    { header: 'Type', accessor: (row) => row.fileUrl ? '🔗 External' : '📄 Uploaded' },
     { header: 'Size', accessor: (row) => formatFileSize(row.fileInfo?.size) },
     {
       header: 'Price',
-      accessor: (row) => row.isFree ? 
-        <span style={{ color: '#48bb78', fontWeight: '600' }}>FREE</span> : 
-        <span style={{ fontWeight: '600' }}>{formatKES(row.price)}</span>
+      accessor: (row) => row.isFree ? <span style={{ color: '#48bb78' }}>FREE</span> : formatKES(row.price)
     },
     { header: 'Downloads', accessor: (row) => row.downloadCount || 0 },
     { header: 'Created', accessor: (row) => formatDate(row.createdAt) },
@@ -204,8 +209,8 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
       header: 'Actions',
       accessor: (row) => (
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-primary" style={{ padding: '4px 12px' }} onClick={() => openEdit(row)}>✏️ Edit</button>
-          <button className="btn btn-danger" style={{ padding: '4px 12px' }} onClick={() => setDeleteTarget(row)}>🗑️ Delete</button>
+          <button className="btn btn-primary" style={{ padding: '4px 12px' }} onClick={() => openEdit(row)}>Edit</button>
+          <button className="btn btn-danger" style={{ padding: '4px 12px' }} onClick={() => setDeleteTarget(row)}>Delete</button>
         </div>
       )
     }
@@ -213,107 +218,97 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
 
   const totalDocs = documents.length;
   const freeCount = documents.filter(d => d.isFree).length;
-  const archiveCount = documents.filter(d => {
-    const ext = d.fileInfo?.extension?.toLowerCase();
-    return ext === '.zip' || ext === '.rar';
-  }).length;
+  const externalCount = documents.filter(d => d.fileUrl && !d.fileInfo).length;
   const totalDownloads = documents.reduce((sum, d) => sum + (d.downloadCount || 0), 0);
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', background: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', background: 'white', padding: '24px', borderRadius: '12px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', margin: 0 }}>Document Management</h1>
-          <p style={{ fontSize: '14px', color: '#718096', marginTop: '4px' }}>
-            {totalDocs} items • {freeCount} free • {archiveCount} archives • {totalDownloads} total downloads
-          </p>
+          <h1>Document Management</h1>
+          <p>{totalDocs} items • {freeCount} free • {externalCount} external • {totalDownloads} downloads</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>+ Upload Document</button>
+        <button className="btn btn-primary" onClick={openCreate}>+ Add Document</button>
       </div>
 
-      {/* Stats Summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '32px' }}>📄</span>
-          <div><div style={{ fontSize: '24px', fontWeight: '700' }}>{totalDocs}</div><div style={{ fontSize: '13px', color: '#718096' }}>Total Documents</div></div>
-        </div>
-        <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '32px' }}>🎁</span>
-          <div><div style={{ fontSize: '24px', fontWeight: '700' }}>{freeCount}</div><div style={{ fontSize: '13px', color: '#718096' }}>Free Documents</div></div>
-        </div>
-        <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '32px' }}>🗜️</span>
-          <div><div style={{ fontSize: '24px', fontWeight: '700' }}>{archiveCount}</div><div style={{ fontSize: '13px', color: '#718096' }}>Archive Files</div></div>
-        </div>
-        <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '32px' }}>⬇️</span>
-          <div><div style={{ fontSize: '24px', fontWeight: '700' }}>{totalDownloads}</div><div style={{ fontSize: '13px', color: '#718096' }}>Total Downloads</div></div>
-        </div>
-      </div>
-
-      {/* Documents Table */}
-      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '20px' }}>
         <DataTable columns={columns} data={documents} />
       </div>
 
-      {/* Create/Edit Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <div className="modal-header">
-              <h3>{editing ? '✏️ Edit Document' : '📄 Upload New Document'}</h3>
+              <h3>{editing ? 'Edit Document' : 'Add Document'}</h3>
               <button className="modal-close" onClick={() => setShowModal(false)}>×</button>
             </div>
             <div className="modal-body">
-              {error && <div style={{ backgroundColor: '#fed7d7', padding: '12px', borderRadius: '8px', marginBottom: '20px', color: '#c53030' }}>❌ {error}</div>}
+              {error && <div style={{ background: '#fed7d7', padding: '12px', borderRadius: '8px', marginBottom: '20px' }}>{error}</div>}
               {uploadProgress > 0 && uploadProgress < 100 && (
                 <div style={{ marginBottom: '20px' }}>
-                  <div style={{ height: '8px', backgroundColor: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ width: `${uploadProgress}%`, height: '100%', backgroundColor: '#48bb78', transition: 'width 0.3s' }} />
+                  <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ width: `${uploadProgress}%`, height: '100%', background: '#48bb78' }} />
                   </div>
-                  <p style={{ fontSize: '12px', color: '#718096', marginTop: '8px', textAlign: 'center' }}>Uploading: {uploadProgress}%</p>
+                  <p style={{ fontSize: '12px', marginTop: '4px' }}>Uploading: {uploadProgress}%</p>
                 </div>
               )}
+
               <div className="form-group">
                 <label>Title *</label>
                 <input type="text" className="form-control" name="title" value={form.title} onChange={handleInputChange} disabled={loading} />
               </div>
               <div className="form-group">
                 <label>Description</label>
-                <textarea className="form-control" rows="4" name="description" value={form.description} onChange={handleInputChange} disabled={loading} />
+                <textarea className="form-control" rows="3" name="description" value={form.description} onChange={handleInputChange} disabled={loading} />
               </div>
               <div className="form-group">
                 <label>Category *</label>
-                <select className="form-control" name="category" value={form.category} onChange={handleInputChange} disabled={loading || categories.length === 0}>
+                <select className="form-control" name="category" value={form.category} onChange={handleInputChange} disabled={loading}>
                   <option value="">Select Category</option>
                   {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
                 </select>
-                {categories.length === 0 && <small style={{ color: '#ed8936' }}>⚠️ No categories found. Please create a category first.</small>}
               </div>
               <div className="form-group">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input type="checkbox" name="isFree" checked={form.isFree} onChange={handleInputChange} disabled={loading} />
-                  <span>This document is <strong>FREE</strong></span>
-                </label>
+                <label>Free?</label>
+                <input type="checkbox" name="isFree" checked={form.isFree} onChange={handleInputChange} disabled={loading} />
               </div>
               {!form.isFree && (
                 <div className="form-group">
                   <label>Price (KES) *</label>
-                  <input type="number" className="form-control" name="price" value={form.price} onChange={handleInputChange} placeholder="e.g., 500" min="1" step="1" disabled={loading} />
+                  <input type="number" className="form-control" name="price" value={form.price} onChange={handleInputChange} min="1" step="1" disabled={loading} />
                 </div>
               )}
-              <div className="form-group">
-                <label>Document File {!editing && '*'}</label>
-                <input type="file" className="form-control" onChange={handleFileChange} accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.zip,.rar" disabled={loading} />
-                {!editing && <small style={{ color: '#718096', display: 'block', marginTop: '4px' }}>Supported: PDF, DOC, DOCX, TXT, RTF, ODT, ZIP, RAR (Max: 500MB)</small>}
-                {editing && !form.file && editing.fileInfo && <small style={{ color: '#718096', display: 'block', marginTop: '4px' }}>Current file: {editing.fileInfo.originalName} ({(editing.fileInfo.size / 1024 / 1024).toFixed(2)} MB)</small>}
-                {editing && form.file && <small style={{ color: '#48bb78', display: 'block', marginTop: '4px' }}>New file selected: {form.file.name} ({(form.file.size / 1024 / 1024).toFixed(2)} MB)</small>}
-              </div>
+
+              {!editing && (
+                <div className="form-group">
+                  <label>Upload Method:</label>
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <label><input type="radio" value="file" checked={uploadMethod === 'file'} onChange={() => setUploadMethod('file')} /> Upload File</label>
+                    <label><input type="radio" value="url" checked={uploadMethod === 'url'} onChange={() => setUploadMethod('url')} /> External URL</label>
+                  </div>
+                </div>
+              )}
+
+              {uploadMethod === 'file' && (
+                <div className="form-group">
+                  <label>File {!editing && '*'}</label>
+                  <input type="file" className="form-control" onChange={handleFileChange} accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.zip,.rar" disabled={loading} />
+                  <small>Max 500MB. Supported: PDF, DOC, DOCX, TXT, RTF, ODT, ZIP, RAR</small>
+                </div>
+              )}
+
+              {uploadMethod === 'url' && (
+                <div className="form-group">
+                  <label>External URL {!editing && '*'}</label>
+                  <input type="url" className="form-control" name="externalUrl" value={form.externalUrl} onChange={handleInputChange} placeholder="https://github.com/.../download/file.zip" disabled={loading} />
+                  <small>Paste a direct download link (e.g., GitHub Releases, Google Drive)</small>
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
                 <button className="btn" onClick={() => setShowModal(false)} disabled={loading}>Cancel</button>
-                <button className="btn btn-primary" onClick={handleSubmit} disabled={loading || categories.length === 0}>
-                  {loading ? (uploadProgress > 0 && uploadProgress < 100 ? `Uploading ${uploadProgress}%` : 'Saving...') : (editing ? 'Update Document' : 'Upload Document')}
+                <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+                  {loading ? (uploadProgress > 0 && uploadProgress < 100 ? `Uploading ${uploadProgress}%` : 'Saving...') : (editing ? 'Update' : 'Add')}
                 </button>
               </div>
             </div>
@@ -321,7 +316,7 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
         </div>
       )}
 
-      <ConfirmationModal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete} title="Delete Document" message={`Are you sure you want to delete "${deleteTarget?.title}"?`} />
+      <ConfirmationModal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete} title="Delete Document" message={`Delete "${deleteTarget?.title}"?`} />
     </div>
   );
 };
