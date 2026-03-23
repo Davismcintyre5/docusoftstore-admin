@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import adminApi from '../../services/adminApi';
 import DataTable from '../common/DataTable';
 import ConfirmationModal from '../common/ConfirmationModal';
-import { formatKES, formatDate } from '../../utils/formatters';
+import { formatKES, formatDate } from '../../utils/helpers';
 
 const SoftwareManager = ({ software, categories, onRefresh }) => {
   const [showModal, setShowModal] = useState(false);
@@ -100,42 +100,66 @@ const SoftwareManager = ({ software, categories, onRefresh }) => {
     setError('');
     setUploadProgress(0);
 
-    const formData = new FormData();
-    formData.append('title', form.title.trim());
-    formData.append('description', form.description || '');
-    formData.append('category', form.category);
-    formData.append('isFree', form.isFree);
-    formData.append('price', form.isFree ? 0 : parseFloat(form.price));
-    if (form.file) formData.append('file', form.file);
-
     try {
-      if (editing) {
-        await adminApi.put(`/software/${editing._id}`, formData, {
+      let fileUrl = null;
+
+      // If a file is selected, upload it to GitHub
+      if (form.file) {
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', form.file);
+
+        const uploadResponse = await adminApi.post('/upload/github', uploadFormData, {
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
               const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
               setUploadProgress(percent);
             }
-          }
+          },
+          timeout: 600000,
+          headers: { 'Content-Type': 'multipart/form-data' }
         });
+
+        fileUrl = uploadResponse.data.url;
+      }
+
+      // Prepare the item data
+      const itemData = {
+        title: form.title.trim(),
+        description: form.description,
+        category: form.category,
+        isFree: form.isFree,
+        price: form.isFree ? 0 : parseFloat(form.price),
+        fileUrl, // store GitHub URL
+      };
+
+      if (editing) {
+        await adminApi.put(`/software/${editing._id}`, itemData);
         alert('Software updated successfully!');
       } else {
-        await adminApi.post('/software', formData, {
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setUploadProgress(percent);
-            }
-          }
-        });
+        await adminApi.post('/software', itemData);
         alert('Software uploaded successfully!');
       }
+
       onRefresh();
       setShowModal(false);
     } catch (error) {
-      console.error(error);
-      setError(error.response?.data?.message || 'Operation failed');
-      alert(error.response?.data?.message || 'Operation failed');
+      console.error('Operation failed:', error);
+      
+      let errorMessage = '';
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        errorMessage = 'Upload timeout. Please try again.';
+      } else if (error.response?.status === 413) {
+        errorMessage = 'File too large for GitHub (max 2GB).';
+      } else if (error.response) {
+        errorMessage = error.response.data?.message || `Error ${error.response.status}`;
+      } else if (error.request) {
+        errorMessage = 'Cannot connect to server.';
+      } else {
+        errorMessage = error.message || 'Upload failed';
+      }
+      
+      setError(errorMessage);
+      alert(`❌ Error: ${errorMessage}`);
     } finally {
       setLoading(false);
       setUploadProgress(0);
@@ -153,6 +177,13 @@ const SoftwareManager = ({ software, categories, onRefresh }) => {
     }
   };
 
+  // Helper to format file size
+  const formatFileSize = (bytes) => {
+    if (!bytes) return 'N/A';
+    const mb = bytes / 1024 / 1024;
+    return mb < 1 ? `${(bytes / 1024).toFixed(0)} KB` : `${mb.toFixed(2)} MB`;
+  };
+
   const columns = [
     { header: 'Title', accessor: 'title' },
     { header: 'Category', accessor: (row) => row.category?.name || 'N/A' },
@@ -163,7 +194,6 @@ const SoftwareManager = ({ software, categories, onRefresh }) => {
         <span style={{ fontWeight: '600' }}>{formatKES(row.price)}</span>
     },
     { header: 'Downloads', accessor: (row) => row.downloadCount || 0 },
-    { header: 'File Size', accessor: (row) => row.fileInfo ? `${(row.fileInfo.size / 1024 / 1024).toFixed(2)} MB` : 'N/A' },
     { header: 'Created', accessor: (row) => formatDate(row.createdAt) },
     {
       header: 'Actions',
@@ -413,14 +443,19 @@ const SoftwareManager = ({ software, categories, onRefresh }) => {
                   accept=".zip,.rar,.exe,.msi,.dmg,.pkg,.appimage,.deb"
                   disabled={loading}
                 />
+                {!editing && (
+                  <small style={{ color: '#718096', display: 'block', marginTop: '4px' }}>
+                    Supported formats: ZIP, RAR, EXE, MSI, DMG, PKG, AppImage, DEB (Max: 500MB)
+                  </small>
+                )}
                 {editing && !form.file && editing.fileInfo && (
                   <small style={{ color: '#718096', display: 'block', marginTop: '4px' }}>
                     Current file: {editing.fileInfo.originalName} ({(editing.fileInfo.size / 1024 / 1024).toFixed(2)} MB)
                   </small>
                 )}
-                {!editing && (
-                  <small style={{ color: '#718096', display: 'block', marginTop: '4px' }}>
-                    Supported formats: ZIP, RAR, EXE, MSI, DMG, PKG, AppImage, DEB (Max: 500MB)
+                {editing && form.file && (
+                  <small style={{ color: '#48bb78', display: 'block', marginTop: '4px' }}>
+                    New file selected: {form.file.name} ({(form.file.size / 1024 / 1024).toFixed(2)} MB)
                   </small>
                 )}
               </div>
