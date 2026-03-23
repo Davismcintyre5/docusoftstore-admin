@@ -7,7 +7,7 @@ import { formatKES, formatDate } from '../../utils/helpers';
 const DocumentManager = ({ documents, categories, onRefresh }) => {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [uploadMethod, setUploadMethod] = useState('file'); // 'file' or 'url'
+  const [uploadMethod, setUploadMethod] = useState('file');
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -89,7 +89,7 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
       return false;
     }
     if (!form.isFree && (!form.price || parseFloat(form.price) <= 0)) {
-      setError('Price must be greater than 0 for paid items');
+      setError('Price must be >0 for paid items');
       return false;
     }
     if (!editing) {
@@ -111,66 +111,53 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
     setError('');
     setUploadProgress(0);
 
+    const formData = new FormData();
+    formData.append('title', form.title.trim());
+    formData.append('description', form.description || '');
+    formData.append('category', form.category);
+    formData.append('isFree', form.isFree);
+    formData.append('price', form.isFree ? 0 : parseFloat(form.price));
+
+    if (uploadMethod === 'file' && form.file) {
+      formData.append('file', form.file);
+    } else if (uploadMethod === 'url') {
+      formData.append('fileUrl', form.externalUrl.trim());
+    } else if (editing && editing.fileUrl) {
+      formData.append('fileUrl', editing.fileUrl);
+    }
+
     try {
-      let fileUrl = null;
-
-      // If uploading a file, send to GitHub
-      if (uploadMethod === 'file' && form.file) {
-        const uploadFormData = new FormData();
-        uploadFormData.append('file', form.file);
-
-        const uploadResponse = await adminApi.post('/upload/github', uploadFormData, {
+      if (editing) {
+        await adminApi.put(`/documents/${editing._id}`, formData, {
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
               const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
               setUploadProgress(percent);
             }
-          },
-          timeout: 600000,
-          headers: { 'Content-Type': 'multipart/form-data' }
+          }
         });
-        fileUrl = uploadResponse.data.url;
-      } else if (uploadMethod === 'url') {
-        fileUrl = form.externalUrl.trim();
-      } else if (editing && editing.fileUrl) {
-        fileUrl = editing.fileUrl; // keep existing URL when editing without changing file
-      }
-
-      const itemData = {
-        title: form.title.trim(),
-        description: form.description,
-        category: form.category,
-        isFree: form.isFree,
-        price: form.isFree ? 0 : parseFloat(form.price),
-        fileUrl
-      };
-
-      if (editing) {
-        await adminApi.put(`/documents/${editing._id}`, itemData);
         alert('Document updated successfully!');
       } else {
-        await adminApi.post('/documents', itemData);
+        await adminApi.post('/documents', formData, {
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadProgress(percent);
+            }
+          }
+        });
         alert('Document uploaded successfully!');
       }
-
       onRefresh();
       setShowModal(false);
     } catch (error) {
-      console.error('Operation failed:', error);
+      console.error(error);
       let errorMessage = '';
-      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        errorMessage = 'Upload timeout. Please try again.';
-      } else if (error.response?.status === 413) {
-        errorMessage = 'File too large for server. Use External URL option.';
-      } else if (error.response) {
-        errorMessage = error.response.data?.message || `Error ${error.response.status}`;
-      } else if (error.request) {
-        errorMessage = 'Cannot connect to server.';
-      } else {
-        errorMessage = error.message || 'Upload failed';
-      }
+      if (error.code === 'ECONNABORTED') errorMessage = 'Upload timeout.';
+      else if (error.response?.status === 413) errorMessage = 'File too large.';
+      else errorMessage = error.response?.data?.message || error.message;
       setError(errorMessage);
-      alert(`❌ Error: ${errorMessage}`);
+      alert(`❌ ${errorMessage}`);
     } finally {
       setLoading(false);
       setUploadProgress(0);
@@ -180,7 +167,7 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
   const handleDelete = async () => {
     try {
       await adminApi.delete(`/documents/${deleteTarget._id}`);
-      alert('Document deleted successfully!');
+      alert('Document deleted');
       onRefresh();
       setDeleteTarget(null);
     } catch (error) {
@@ -197,7 +184,7 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
   const columns = [
     { header: 'Title', accessor: 'title' },
     { header: 'Category', accessor: (row) => row.category?.name || 'N/A' },
-    { header: 'Type', accessor: (row) => row.fileUrl ? '🔗 External' : '📄 Uploaded' },
+    { header: 'Type', accessor: (row) => row.fileUrl && !row.fileInfo ? '🔗 External' : '📄 Uploaded' },
     { header: 'Size', accessor: (row) => formatFileSize(row.fileInfo?.size) },
     {
       header: 'Price',
@@ -209,8 +196,8 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
       header: 'Actions',
       accessor: (row) => (
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-primary" style={{ padding: '4px 12px' }} onClick={() => openEdit(row)}>Edit</button>
-          <button className="btn btn-danger" style={{ padding: '4px 12px' }} onClick={() => setDeleteTarget(row)}>Delete</button>
+          <button className="btn btn-primary" onClick={() => openEdit(row)}>Edit</button>
+          <button className="btn btn-danger" onClick={() => setDeleteTarget(row)}>Delete</button>
         </div>
       )
     }
@@ -301,7 +288,7 @@ const DocumentManager = ({ documents, categories, onRefresh }) => {
                 <div className="form-group">
                   <label>External URL {!editing && '*'}</label>
                   <input type="url" className="form-control" name="externalUrl" value={form.externalUrl} onChange={handleInputChange} placeholder="https://github.com/.../download/file.zip" disabled={loading} />
-                  <small>Paste a direct download link (e.g., GitHub Releases, Google Drive)</small>
+                  <small>Paste a direct download link (e.g., GitHub Releases)</small>
                 </div>
               )}
 
