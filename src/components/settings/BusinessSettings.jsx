@@ -7,13 +7,37 @@ const BusinessSettings = ({ settings, onSave, saving }) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  const handleTermsChange = (e) => {
+    setForm({
+      ...form,
+      termsAndConditions: {
+        ...form.termsAndConditions,
+        content: e.target.value
+      }
+    });
+  };
+
+  const handlePrivacyChange = (e) => {
+    setForm({
+      ...form,
+      privacyPolicy: {
+        ...form.privacyPolicy,
+        content: e.target.value
+      }
+    });
+  };
+
+  const handleRequireTermsChange = (e) => {
+    setForm({ ...form, requireTermsAcceptance: e.target.checked });
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave(form);
   };
 
   return (
-    <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+    <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
       <h2 style={{ fontSize: '20px', marginBottom: '20px' }}>Business Information</h2>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
@@ -32,7 +56,9 @@ const BusinessSettings = ({ settings, onSave, saving }) => {
           <label>Payment Instructions</label>
           <textarea className="form-control" rows="3" name="paymentInstructions" value={form.paymentInstructions || ''} onChange={handleChange} />
         </div>
-        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>
+          {saving ? 'Saving...' : 'Save Changes'}
+        </button>
       </form>
     </div>
   );

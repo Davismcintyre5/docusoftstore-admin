@@ -9,6 +9,15 @@ const SettingsPage = () => {
     enableSTKPush: true,
     enableManualPayment: true,
     paymentInstructions: 'Send money to {businessNumber} via M-Pesa, then upload screenshot',
+    requireTermsAcceptance: true,
+    termsAndConditions: {
+      content: 'Default Terms and Conditions. Please update these in admin settings.',
+      lastUpdated: new Date()
+    },
+    privacyPolicy: {
+      content: 'Default Privacy Policy. Please update these in admin settings.',
+      lastUpdated: new Date()
+    },
     businessHours: {
       monday: '9am-5pm',
       tuesday: '9am-5pm',
@@ -19,6 +28,7 @@ const SettingsPage = () => {
       sunday: 'Closed'
     }
   });
+  const [activeTab, setActiveTab] = useState('general');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -63,6 +73,26 @@ const SettingsPage = () => {
     }
   };
 
+  const handleTermsChange = (e) => {
+    setSettings({
+      ...settings,
+      termsAndConditions: {
+        ...settings.termsAndConditions,
+        content: e.target.value
+      }
+    });
+  };
+
+  const handlePrivacyChange = (e) => {
+    setSettings({
+      ...settings,
+      privacyPolicy: {
+        ...settings.privacyPolicy,
+        content: e.target.value
+      }
+    });
+  };
+
   const handleHoursChange = (day, value) => {
     setSettings({
       ...settings,
@@ -95,7 +125,10 @@ const SettingsPage = () => {
         enableSTKPush: data.enableSTKPush,
         enableManualPayment: data.enableManualPayment,
         paymentInstructions: data.paymentInstructions,
-        businessHours: data.businessHours
+        businessHours: data.businessHours,
+        requireTermsAcceptance: data.requireTermsAcceptance,
+        termsAndConditions: data.termsAndConditions,
+        privacyPolicy: data.privacyPolicy
       }));
       
       // Dispatch custom event for same-tab updates
@@ -126,6 +159,17 @@ const SettingsPage = () => {
     );
   }
 
+  const formatDate = (date) => {
+    if (!date) return 'Not set';
+    return new Date(date).toLocaleDateString('en-KE', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   return (
     <div style={styles.container}>
       {/* Header */}
@@ -141,142 +185,242 @@ const SettingsPage = () => {
         </div>
       )}
 
+      {/* Tabs */}
+      <div style={styles.tabs}>
+        <button
+          onClick={() => setActiveTab('general')}
+          style={{ ...styles.tab, ...(activeTab === 'general' ? styles.activeTab : {}) }}
+        >
+          🏢 General
+        </button>
+        <button
+          onClick={() => setActiveTab('payment')}
+          style={{ ...styles.tab, ...(activeTab === 'payment' ? styles.activeTab : {}) }}
+        >
+          💰 Payment
+        </button>
+        <button
+          onClick={() => setActiveTab('hours')}
+          style={{ ...styles.tab, ...(activeTab === 'hours' ? styles.activeTab : {}) }}
+        >
+          ⏰ Hours
+        </button>
+        <button
+          onClick={() => setActiveTab('legal')}
+          style={{ ...styles.tab, ...(activeTab === 'legal' ? styles.activeTab : {}) }}
+        >
+          📜 Legal
+        </button>
+      </div>
+
       {/* Settings Form */}
       <form onSubmit={handleSubmit} style={styles.form}>
-        {/* Business Information */}
-        <div style={styles.card}>
-          <div style={styles.cardHeader}>
-            <h2 style={styles.cardTitle}>🏢 Business Information</h2>
-            <p style={styles.cardSubtitle}>Basic information about your store</p>
-          </div>
-          
-          <div style={styles.cardBody}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Business Name</label>
-              <input
-                type="text"
-                name="businessName"
-                value={settings.businessName || ''}
-                onChange={handleChange}
-                style={styles.input}
-                placeholder="e.g., DocuSoft Store"
-              />
-              <small style={styles.helpText}>This name appears throughout the store</small>
+        {/* General Settings Tab */}
+        {activeTab === 'general' && (
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h2 style={styles.cardTitle}>🏢 Business Information</h2>
+              <p style={styles.cardSubtitle}>Basic information about your store</p>
             </div>
-
-            <div style={styles.formRow}>
+            
+            <div style={styles.cardBody}>
               <div style={styles.formGroup}>
-                <label style={styles.label}>Business M-Pesa Number</label>
+                <label style={styles.label}>Business Name</label>
                 <input
                   type="text"
-                  name="businessPhoneNumber"
-                  value={settings.businessPhoneNumber || ''}
+                  name="businessName"
+                  value={settings.businessName || ''}
                   onChange={handleChange}
                   style={styles.input}
-                  placeholder="e.g., 0768784909"
+                  placeholder="e.g., DocuSoft Store"
                 />
-                <small style={styles.helpText}>Customers send money to this number</small>
+                <small style={styles.helpText}>This name appears throughout the store</small>
               </div>
 
-              <div style={styles.formGroup}>
-                <label style={styles.label}>WhatsApp Number</label>
-                <input
-                  type="text"
-                  name="whatsappNumber"
-                  value={settings.whatsappNumber || ''}
-                  onChange={handleChange}
-                  style={styles.input}
-                  placeholder="e.g., 0768784909"
-                />
-                <small style={styles.helpText}>For customer support chat</small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Payment Settings */}
-        <div style={styles.card}>
-          <div style={styles.cardHeader}>
-            <h2 style={styles.cardTitle}>💰 Payment Settings</h2>
-            <p style={styles.cardSubtitle}>Configure payment options</p>
-          </div>
-          
-          <div style={styles.cardBody}>
-            <div style={styles.checkboxGroup}>
-              <label style={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  name="enableSTKPush"
-                  checked={settings.enableSTKPush || false}
-                  onChange={handleChange}
-                  style={styles.checkbox}
-                />
-                <span style={styles.checkboxText}>
-                  <strong>Enable STK Push (Autogenerated)</strong>
-                  <span style={styles.checkboxHelp}>Customers receive payment prompt on their phone</span>
-                </span>
-              </label>
-            </div>
-
-            <div style={styles.checkboxGroup}>
-              <label style={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  name="enableManualPayment"
-                  checked={settings.enableManualPayment || false}
-                  onChange={handleChange}
-                  style={styles.checkbox}
-                />
-                <span style={styles.checkboxText}>
-                  <strong>Enable Manual Payment (Send to Owner)</strong>
-                  <span style={styles.checkboxHelp}>Customers send money manually and upload screenshot</span>
-                </span>
-              </label>
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Payment Instructions</label>
-              <textarea
-                name="paymentInstructions"
-                value={settings.paymentInstructions || ''}
-                onChange={handleChange}
-                style={styles.textarea}
-                rows="4"
-                placeholder="Instructions for manual payments..."
-              />
-              <small style={styles.helpText}>
-                Use {'{businessNumber}'} to automatically insert the business phone number
-              </small>
-            </div>
-          </div>
-        </div>
-
-        {/* Business Hours */}
-        <div style={styles.card}>
-          <div style={styles.cardHeader}>
-            <h2 style={styles.cardTitle}>⏰ Business Hours</h2>
-            <p style={styles.cardSubtitle}>When are you available for support?</p>
-          </div>
-          
-          <div style={styles.cardBody}>
-            <div style={styles.hoursGrid}>
-              {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
-                <div key={day} style={styles.hoursRow}>
-                  <label style={styles.hoursLabel}>
-                    {day.charAt(0).toUpperCase() + day.slice(1)}
-                  </label>
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Business M-Pesa Number</label>
                   <input
                     type="text"
-                    value={settings.businessHours?.[day] || ''}
-                    onChange={(e) => handleHoursChange(day, e.target.value)}
-                    style={styles.hoursInput}
-                    placeholder="e.g., 9am-5pm or Closed"
+                    name="businessPhoneNumber"
+                    value={settings.businessPhoneNumber || ''}
+                    onChange={handleChange}
+                    style={styles.input}
+                    placeholder="e.g., 0768784909"
                   />
+                  <small style={styles.helpText}>Customers send money to this number</small>
                 </div>
-              ))}
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>WhatsApp Number</label>
+                  <input
+                    type="text"
+                    name="whatsappNumber"
+                    value={settings.whatsappNumber || ''}
+                    onChange={handleChange}
+                    style={styles.input}
+                    placeholder="e.g., 0768784909"
+                  />
+                  <small style={styles.helpText}>For customer support chat</small>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Payment Settings Tab */}
+        {activeTab === 'payment' && (
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h2 style={styles.cardTitle}>💰 Payment Settings</h2>
+              <p style={styles.cardSubtitle}>Configure payment options</p>
+            </div>
+            
+            <div style={styles.cardBody}>
+              <div style={styles.checkboxGroup}>
+                <label style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    name="enableSTKPush"
+                    checked={settings.enableSTKPush || false}
+                    onChange={handleChange}
+                    style={styles.checkbox}
+                  />
+                  <span style={styles.checkboxText}>
+                    <strong>Enable STK Push (Autogenerated)</strong>
+                    <span style={styles.checkboxHelp}>Customers receive payment prompt on their phone</span>
+                  </span>
+                </label>
+              </div>
+
+              <div style={styles.checkboxGroup}>
+                <label style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    name="enableManualPayment"
+                    checked={settings.enableManualPayment || false}
+                    onChange={handleChange}
+                    style={styles.checkbox}
+                  />
+                  <span style={styles.checkboxText}>
+                    <strong>Enable Manual Payment (Send to Owner)</strong>
+                    <span style={styles.checkboxHelp}>Customers send money manually and upload screenshot</span>
+                  </span>
+                </label>
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Payment Instructions</label>
+                <textarea
+                  name="paymentInstructions"
+                  value={settings.paymentInstructions || ''}
+                  onChange={handleChange}
+                  style={styles.textarea}
+                  rows="4"
+                  placeholder="Instructions for manual payments..."
+                />
+                <small style={styles.helpText}>
+                  Use {'{businessNumber}'} to automatically insert the business phone number
+                </small>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Business Hours Tab */}
+        {activeTab === 'hours' && (
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h2 style={styles.cardTitle}>⏰ Business Hours</h2>
+              <p style={styles.cardSubtitle}>When are you available for support?</p>
+            </div>
+            
+            <div style={styles.cardBody}>
+              <div style={styles.hoursGrid}>
+                {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
+                  <div key={day} style={styles.hoursRow}>
+                    <label style={styles.hoursLabel}>
+                      {day.charAt(0).toUpperCase() + day.slice(1)}
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.businessHours?.[day] || ''}
+                      onChange={(e) => handleHoursChange(day, e.target.value)}
+                      style={styles.hoursInput}
+                      placeholder="e.g., 9am-5pm or Closed"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Legal Settings Tab (Terms & Privacy) */}
+        {activeTab === 'legal' && (
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h2 style={styles.cardTitle}>📜 Legal Settings</h2>
+              <p style={styles.cardSubtitle}>Terms & Conditions and Privacy Policy</p>
+            </div>
+            
+            <div style={styles.cardBody}>
+              <div style={styles.checkboxGroup}>
+                <label style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    name="requireTermsAcceptance"
+                    checked={settings.requireTermsAcceptance !== false}
+                    onChange={handleChange}
+                    style={styles.checkbox}
+                  />
+                  <span style={styles.checkboxText}>
+                    <strong>Require Acceptance on Registration</strong>
+                    <span style={styles.checkboxHelp}>Users must accept Terms & Conditions and Privacy Policy when registering</span>
+                  </span>
+                </label>
+              </div>
+
+              <div style={styles.divider}></div>
+
+              {/* Terms & Conditions */}
+              <div style={styles.legalSection}>
+                <h3 style={styles.legalTitle}>Terms & Conditions</h3>
+                {settings.termsAndConditions?.lastUpdated && (
+                  <p style={styles.lastUpdated}>
+                    Last updated: {formatDate(settings.termsAndConditions.lastUpdated)}
+                  </p>
+                )}
+                <textarea
+                  value={settings.termsAndConditions?.content || ''}
+                  onChange={handleTermsChange}
+                  style={styles.legalTextarea}
+                  rows="12"
+                  placeholder="Enter your Terms & Conditions here..."
+                />
+              </div>
+
+              <div style={styles.divider}></div>
+
+              {/* Privacy Policy */}
+              <div style={styles.legalSection}>
+                <h3 style={styles.legalTitle}>Privacy Policy</h3>
+                {settings.privacyPolicy?.lastUpdated && (
+                  <p style={styles.lastUpdated}>
+                    Last updated: {formatDate(settings.privacyPolicy.lastUpdated)}
+                  </p>
+                )}
+                <textarea
+                  value={settings.privacyPolicy?.content || ''}
+                  onChange={handlePrivacyChange}
+                  style={styles.legalTextarea}
+                  rows="12"
+                  placeholder="Enter your Privacy Policy here..."
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Save Button */}
         <div style={styles.buttonContainer}>
@@ -291,7 +435,7 @@ const SettingsPage = () => {
                 Saving Changes...
               </>
             ) : (
-              '💾 Save Settings'
+              '💾 Save All Settings'
             )}
           </button>
         </div>
@@ -325,6 +469,12 @@ const SettingsPage = () => {
               {settings.enableManualPayment ? '✅ Enabled' : '❌ Disabled'}
             </span>
           </div>
+          <div style={styles.previewItem}>
+            <span style={styles.previewLabel}>Terms Required:</span>
+            <span style={settings.requireTermsAcceptance !== false ? styles.previewEnabled : styles.previewDisabled}>
+              {settings.requireTermsAcceptance !== false ? '✅ Yes' : '❌ No'}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -333,7 +483,7 @@ const SettingsPage = () => {
 
 const styles = {
   container: {
-    maxWidth: '900px',
+    maxWidth: '1000px',
     margin: '0 auto',
     padding: '20px'
   },
@@ -367,6 +517,31 @@ const styles = {
   subtitle: {
     fontSize: '16px',
     color: '#718096'
+  },
+  tabs: {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '24px',
+    backgroundColor: 'white',
+    padding: '8px',
+    borderRadius: '12px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    flexWrap: 'wrap'
+  },
+  tab: {
+    padding: '10px 20px',
+    border: 'none',
+    borderRadius: '8px',
+    backgroundColor: 'transparent',
+    color: '#718096',
+    fontSize: '14px',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.3s'
+  },
+  activeTab: {
+    backgroundColor: '#667eea',
+    color: 'white'
   },
   successMessage: {
     backgroundColor: '#c6f6d5',
@@ -460,6 +635,22 @@ const styles = {
       boxShadow: '0 0 0 3px rgba(102, 126, 234, 0.1)'
     }
   },
+  legalTextarea: {
+    width: '100%',
+    padding: '16px',
+    border: '2px solid #e2e8f0',
+    borderRadius: '8px',
+    fontSize: '14px',
+    lineHeight: '1.6',
+    transition: 'all 0.3s',
+    outline: 'none',
+    resize: 'vertical',
+    fontFamily: 'monospace',
+    ':focus': {
+      borderColor: '#667eea',
+      boxShadow: '0 0 0 3px rgba(102, 126, 234, 0.1)'
+    }
+  },
   helpText: {
     display: 'block',
     fontSize: '12px',
@@ -494,6 +685,25 @@ const styles = {
     fontSize: '13px',
     color: '#718096',
     fontWeight: 'normal'
+  },
+  divider: {
+    height: '1px',
+    backgroundColor: '#e2e8f0',
+    margin: '24px 0'
+  },
+  legalSection: {
+    marginBottom: '24px'
+  },
+  legalTitle: {
+    fontSize: '18px',
+    fontWeight: '600',
+    color: '#2d3748',
+    marginBottom: '8px'
+  },
+  lastUpdated: {
+    fontSize: '12px',
+    color: '#a0aec0',
+    marginBottom: '12px'
   },
   hoursGrid: {
     display: 'grid',
