@@ -1,13 +1,10 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
-
-// Layout
+import { ThemeProvider } from './context/ThemeContext';
 import AdminHeader from './components/layout/AdminHeader';
 import AdminSidebar from './components/layout/AdminSidebar';
 import AdminFooter from './components/layout/AdminFooter';
-
-// Pages
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import CategoriesPage from './pages/CategoriesPage';
@@ -17,57 +14,38 @@ import PaymentsPage from './pages/PaymentsPage';
 import OrdersPage from './pages/OrdersPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
+import LoadingSpinner from './components/common/LoadingSpinner';
 
-// Loading component
-const LoadingSpinner = () => (
-  <div style={styles.loadingContainer}>
-    <div className="spinner"></div>
-    <p style={styles.loadingText}>Loading Admin Panel...</p>
-  </div>
-);
-
-// Protected Route Component
 const ProtectedRoute = () => {
   const { admin, loading } = useAdminAuth();
-  
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-  
-  if (!admin) {
-    return <Navigate to="/login" replace />;
-  }
-  
+  if (loading) return <LoadingSpinner fullScreen />;
+  if (!admin) return <Navigate to="/login" replace />;
   return <Outlet />;
 };
 
-// Main App Content
+const AppLayout = () => {
+  return (
+    <div className="min-h-screen flex flex-col">
+      <AdminHeader />
+      <div className="flex flex-1">
+        <AdminSidebar />
+        <main className="flex-1 p-4 md:p-6 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
+      <AdminFooter />
+    </div>
+  );
+};
+
 const AppContent = () => {
   const { loading } = useAdminAuth();
-
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
+  if (loading) return <LoadingSpinner fullScreen />;
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute />}>
-        <Route
-          path="/"
-          element={
-            <div className="app">
-              <AdminHeader />
-              <div className="main-container">
-                <AdminSidebar />
-                <main className="content-area">
-                  <Outlet />
-                </main>
-              </div>
-              <AdminFooter />
-            </div>
-          }
-        >
+        <Route element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="categories" element={<CategoriesPage />} />
           <Route path="documents" element={<DocumentsPage />} />
@@ -83,32 +61,16 @@ const AppContent = () => {
   );
 };
 
-// Main App Component
 function App() {
   return (
     <Router>
       <AdminAuthProvider>
-        <AppContent />
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
       </AdminAuthProvider>
     </Router>
   );
 }
-
-const styles = {
-  loadingContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '100vh',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  },
-  loadingText: {
-    marginTop: '16px',
-    color: 'white',
-    fontSize: '14px',
-    fontWeight: '500',
-  },
-};
 
 export default App;

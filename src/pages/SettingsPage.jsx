@@ -1,23 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import adminApi from '../services/adminApi';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import { Save, Building, CreditCard, Clock, FileText as FileTextIcon } from 'lucide-react';
 
 const SettingsPage = () => {
   const [settings, setSettings] = useState({
     businessName: 'DocuSoft Store',
     businessPhoneNumber: '0768784909',
     whatsappNumber: '0768784909',
+    contactEmail: 'support@docusoft.com',
+    address: 'Nairobi, Kenya',
+    facebook: '',
+    twitter: '',
+    instagram: '',
     enableSTKPush: true,
     enableManualPayment: true,
     paymentInstructions: 'Send money to {businessNumber} via M-Pesa, then upload screenshot',
     requireTermsAcceptance: true,
-    termsAndConditions: {
-      content: 'Default Terms and Conditions. Please update these in admin settings.',
-      lastUpdated: new Date()
-    },
-    privacyPolicy: {
-      content: 'Default Privacy Policy. Please update these in admin settings.',
-      lastUpdated: new Date()
-    },
+    termsAndConditions: { content: '', lastUpdated: null },
+    privacyPolicy: { content: '', lastUpdated: null },
     businessHours: {
       monday: '9am-5pm',
       tuesday: '9am-5pm',
@@ -33,22 +34,15 @@ const SettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
+  useEffect(() => { fetchSettings(); }, []);
 
   const fetchSettings = async () => {
     setLoading(true);
     try {
       const { data } = await adminApi.get('/admin/settings');
-      console.log('Settings loaded:', data);
-      setSettings(data);
-    } catch (error) {
-      console.error('Failed to fetch settings', error);
-      setMessage({ 
-        type: 'error', 
-        text: 'Failed to load settings. Using defaults.' 
-      });
+      setSettings(prev => ({ ...prev, ...data }));
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Failed to load settings' });
     } finally {
       setLoading(false);
     }
@@ -56,769 +50,192 @@ const SettingsPage = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
-    if (name.includes('.')) {
-      const [parent, child] = name.split('.');
-      setSettings({
-        ...settings,
-        [parent]: {
-          ...settings[parent],
-          [child]: value
-        }
-      });
-    } else if (type === 'checkbox') {
-      setSettings({ ...settings, [name]: checked });
+    if (type === 'checkbox') {
+      setSettings(prev => ({ ...prev, [name]: checked }));
     } else {
-      setSettings({ ...settings, [name]: value });
+      setSettings(prev => ({ ...prev, [name]: value }));
     }
   };
 
+  const handleHoursChange = (day, value) => {
+    setSettings(prev => ({ ...prev, businessHours: { ...prev.businessHours, [day]: value } }));
+  };
+
   const handleTermsChange = (e) => {
-    setSettings({
-      ...settings,
-      termsAndConditions: {
-        ...settings.termsAndConditions,
-        content: e.target.value
-      }
-    });
+    setSettings(prev => ({ ...prev, termsAndConditions: { ...prev.termsAndConditions, content: e.target.value } }));
   };
 
   const handlePrivacyChange = (e) => {
-    setSettings({
-      ...settings,
-      privacyPolicy: {
-        ...settings.privacyPolicy,
-        content: e.target.value
-      }
-    });
-  };
-
-  const handleHoursChange = (day, value) => {
-    setSettings({
-      ...settings,
-      businessHours: { 
-        ...settings.businessHours, 
-        [day]: value 
-      }
-    });
+    setSettings(prev => ({ ...prev, privacyPolicy: { ...prev.privacyPolicy, content: e.target.value } }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     setMessage({ type: '', text: '' });
-    
     try {
-      const { data } = await adminApi.put('/admin/settings', settings);
-      console.log('Settings saved:', data);
-      
-      setMessage({ 
-        type: 'success', 
-        text: '✅ Settings saved successfully! Changes are now live across all pages.' 
-      });
-      
-      // Update localStorage for immediate sync
-      localStorage.setItem('businessSettings', JSON.stringify({
-        businessName: data.businessName,
-        businessPhoneNumber: data.businessPhoneNumber,
-        whatsappNumber: data.whatsappNumber,
-        enableSTKPush: data.enableSTKPush,
-        enableManualPayment: data.enableManualPayment,
-        paymentInstructions: data.paymentInstructions,
-        businessHours: data.businessHours,
-        requireTermsAcceptance: data.requireTermsAcceptance,
-        termsAndConditions: data.termsAndConditions,
-        privacyPolicy: data.privacyPolicy
-      }));
-      
-      // Dispatch custom event for same-tab updates
-      window.dispatchEvent(new CustomEvent('settingsUpdated', { detail: data }));
-      
-      // Force refresh settings to ensure sync
-      setTimeout(() => {
-        fetchSettings();
-      }, 500);
-      
-    } catch (error) {
-      console.error('Failed to save settings', error);
-      setMessage({ 
-        type: 'error', 
-        text: '❌ Failed to save settings: ' + (error.response?.data?.message || 'Unknown error') 
-      });
+      const payload = { ...settings };
+      await adminApi.put('/admin/settings', payload);
+      setMessage({ type: 'success', text: 'Settings saved successfully!' });
+      // Dispatch event for real‑time sync to all client tabs
+      window.dispatchEvent(new CustomEvent('settingsUpdated', { detail: payload }));
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Save failed' });
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div style={styles.loadingContainer}>
-        <div className="spinner" style={styles.spinner}></div>
-        <p style={styles.loadingText}>Loading settings...</p>
-      </div>
-    );
-  }
+  if (loading) return <LoadingSpinner />;
 
-  const formatDate = (date) => {
-    if (!date) return 'Not set';
-    return new Date(date).toLocaleDateString('en-KE', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const tabs = [
+    { id: 'general', label: 'General', icon: Building },
+    { id: 'payment', label: 'Payment', icon: CreditCard },
+    { id: 'hours', label: 'Business Hours', icon: Clock },
+    { id: 'legal', label: 'Legal', icon: FileTextIcon },
+  ];
 
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <h1 style={styles.title}>⚙️ Settings</h1>
-        <p style={styles.subtitle}>Configure your store settings - changes sync instantly across all pages</p>
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+        <p className="text-gray-500 dark:text-gray-400">Configure your store settings</p>
       </div>
 
-      {/* Message Alert */}
       {message.text && (
-        <div style={message.type === 'success' ? styles.successMessage : styles.errorMessage}>
+        <div className={`mb-4 p-3 rounded-lg text-sm ${
+          message.type === 'success'
+            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+        }`}>
           {message.text}
         </div>
       )}
 
-      {/* Tabs */}
-      <div style={styles.tabs}>
-        <button
-          onClick={() => setActiveTab('general')}
-          style={{ ...styles.tab, ...(activeTab === 'general' ? styles.activeTab : {}) }}
-        >
-          🏢 General
-        </button>
-        <button
-          onClick={() => setActiveTab('payment')}
-          style={{ ...styles.tab, ...(activeTab === 'payment' ? styles.activeTab : {}) }}
-        >
-          💰 Payment
-        </button>
-        <button
-          onClick={() => setActiveTab('hours')}
-          style={{ ...styles.tab, ...(activeTab === 'hours' ? styles.activeTab : {}) }}
-        >
-          ⏰ Hours
-        </button>
-        <button
-          onClick={() => setActiveTab('legal')}
-          style={{ ...styles.tab, ...(activeTab === 'legal' ? styles.activeTab : {}) }}
-        >
-          📜 Legal
-        </button>
+      <div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700 mb-6">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition ${
+              activeTab === tab.id
+                ? 'text-primary-600 border-b-2 border-primary-600 dark:text-primary-400'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+          >
+            <tab.icon size={16} /> {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Settings Form */}
-      <form onSubmit={handleSubmit} style={styles.form}>
-        {/* General Settings Tab */}
-        {activeTab === 'general' && (
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <h2 style={styles.cardTitle}>🏢 Business Information</h2>
-              <p style={styles.cardSubtitle}>Basic information about your store</p>
-            </div>
-            
-            <div style={styles.cardBody}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Business Name</label>
-                <input
-                  type="text"
-                  name="businessName"
-                  value={settings.businessName || ''}
-                  onChange={handleChange}
-                  style={styles.input}
-                  placeholder="e.g., DocuSoft Store"
-                />
-                <small style={styles.helpText}>This name appears throughout the store</small>
-              </div>
-
-              <div style={styles.formRow}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Business M-Pesa Number</label>
-                  <input
-                    type="text"
-                    name="businessPhoneNumber"
-                    value={settings.businessPhoneNumber || ''}
-                    onChange={handleChange}
-                    style={styles.input}
-                    placeholder="e.g., 0768784909"
-                  />
-                  <small style={styles.helpText}>Customers send money to this number</small>
+      <form onSubmit={handleSubmit}>
+        <div className="card">
+          <div className="card-body space-y-6">
+            {/* General Tab */}
+            {activeTab === 'general' && (
+              <>
+                <div>
+                  <label className="label">Business Name</label>
+                  <input name="businessName" className="input" value={settings.businessName} onChange={handleChange} />
                 </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>WhatsApp Number</label>
-                  <input
-                    type="text"
-                    name="whatsappNumber"
-                    value={settings.whatsappNumber || ''}
-                    onChange={handleChange}
-                    style={styles.input}
-                    placeholder="e.g., 0768784909"
-                  />
-                  <small style={styles.helpText}>For customer support chat</small>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Business Phone Number</label>
+                    <input name="businessPhoneNumber" className="input" value={settings.businessPhoneNumber} onChange={handleChange} />
+                  </div>
+                  <div>
+                    <label className="label">WhatsApp Number</label>
+                    <input name="whatsappNumber" className="input" value={settings.whatsappNumber} onChange={handleChange} />
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Contact Email</label>
+                    <input name="contactEmail" className="input" value={settings.contactEmail} onChange={handleChange} />
+                  </div>
+                  <div>
+                    <label className="label">Physical Address</label>
+                    <input name="address" className="input" value={settings.address} onChange={handleChange} />
+                  </div>
+                </div>
+                <div className="border-t pt-4 mt-2">
+                  <h3 className="font-semibold mb-3">Social Media Links</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="label">Facebook URL</label>
+                      <input name="facebook" className="input" value={settings.facebook || ''} onChange={handleChange} placeholder="https://facebook.com/yourpage" />
+                    </div>
+                    <div>
+                      <label className="label">Twitter URL</label>
+                      <input name="twitter" className="input" value={settings.twitter || ''} onChange={handleChange} placeholder="https://twitter.com/yourhandle" />
+                    </div>
+                    <div>
+                      <label className="label">Instagram URL</label>
+                      <input name="instagram" className="input" value={settings.instagram || ''} onChange={handleChange} placeholder="https://instagram.com/yourhandle" />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
-        {/* Payment Settings Tab */}
-        {activeTab === 'payment' && (
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <h2 style={styles.cardTitle}>💰 Payment Settings</h2>
-              <p style={styles.cardSubtitle}>Configure payment options</p>
-            </div>
-            
-            <div style={styles.cardBody}>
-              <div style={styles.checkboxGroup}>
-                <label style={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    name="enableSTKPush"
-                    checked={settings.enableSTKPush || false}
-                    onChange={handleChange}
-                    style={styles.checkbox}
-                  />
-                  <span style={styles.checkboxText}>
-                    <strong>Enable STK Push (Autogenerated)</strong>
-                    <span style={styles.checkboxHelp}>Customers receive payment prompt on their phone</span>
-                  </span>
-                </label>
-              </div>
+            {/* Payment Tab */}
+            {activeTab === 'payment' && (
+              <>
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" name="enableSTKPush" checked={settings.enableSTKPush} onChange={handleChange} />
+                  <label>Enable STK Push (Auto-generated)</label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" name="enableManualPayment" checked={settings.enableManualPayment} onChange={handleChange} />
+                  <label>Enable Manual Payment</label>
+                </div>
+                <div>
+                  <label className="label">Payment Instructions</label>
+                  <textarea name="paymentInstructions" rows="4" className="input" value={settings.paymentInstructions} onChange={handleChange} />
+                  <p className="text-xs text-gray-500 mt-1">Use {'{businessNumber}'} to insert business phone number</p>
+                </div>
+              </>
+            )}
 
-              <div style={styles.checkboxGroup}>
-                <label style={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    name="enableManualPayment"
-                    checked={settings.enableManualPayment || false}
-                    onChange={handleChange}
-                    style={styles.checkbox}
-                  />
-                  <span style={styles.checkboxText}>
-                    <strong>Enable Manual Payment (Send to Owner)</strong>
-                    <span style={styles.checkboxHelp}>Customers send money manually and upload screenshot</span>
-                  </span>
-                </label>
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Payment Instructions</label>
-                <textarea
-                  name="paymentInstructions"
-                  value={settings.paymentInstructions || ''}
-                  onChange={handleChange}
-                  style={styles.textarea}
-                  rows="4"
-                  placeholder="Instructions for manual payments..."
-                />
-                <small style={styles.helpText}>
-                  Use {'{businessNumber}'} to automatically insert the business phone number
-                </small>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Business Hours Tab */}
-        {activeTab === 'hours' && (
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <h2 style={styles.cardTitle}>⏰ Business Hours</h2>
-              <p style={styles.cardSubtitle}>When are you available for support?</p>
-            </div>
-            
-            <div style={styles.cardBody}>
-              <div style={styles.hoursGrid}>
-                {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
-                  <div key={day} style={styles.hoursRow}>
-                    <label style={styles.hoursLabel}>
-                      {day.charAt(0).toUpperCase() + day.slice(1)}
-                    </label>
-                    <input
-                      type="text"
-                      value={settings.businessHours?.[day] || ''}
-                      onChange={(e) => handleHoursChange(day, e.target.value)}
-                      style={styles.hoursInput}
-                      placeholder="e.g., 9am-5pm or Closed"
-                    />
+            {/* Hours Tab */}
+            {activeTab === 'hours' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {Object.entries(settings.businessHours).map(([day, hours]) => (
+                  <div key={day}>
+                    <label className="label capitalize">{day}</label>
+                    <input className="input" value={hours} onChange={(e) => handleHoursChange(day, e.target.value)} />
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Legal Settings Tab (Terms & Privacy) */}
-        {activeTab === 'legal' && (
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <h2 style={styles.cardTitle}>📜 Legal Settings</h2>
-              <p style={styles.cardSubtitle}>Terms & Conditions and Privacy Policy</p>
-            </div>
-            
-            <div style={styles.cardBody}>
-              <div style={styles.checkboxGroup}>
-                <label style={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    name="requireTermsAcceptance"
-                    checked={settings.requireTermsAcceptance !== false}
-                    onChange={handleChange}
-                    style={styles.checkbox}
-                  />
-                  <span style={styles.checkboxText}>
-                    <strong>Require Acceptance on Registration</strong>
-                    <span style={styles.checkboxHelp}>Users must accept Terms & Conditions and Privacy Policy when registering</span>
-                  </span>
-                </label>
-              </div>
-
-              <div style={styles.divider}></div>
-
-              {/* Terms & Conditions */}
-              <div style={styles.legalSection}>
-                <h3 style={styles.legalTitle}>Terms & Conditions</h3>
-                {settings.termsAndConditions?.lastUpdated && (
-                  <p style={styles.lastUpdated}>
-                    Last updated: {formatDate(settings.termsAndConditions.lastUpdated)}
-                  </p>
-                )}
-                <textarea
-                  value={settings.termsAndConditions?.content || ''}
-                  onChange={handleTermsChange}
-                  style={styles.legalTextarea}
-                  rows="12"
-                  placeholder="Enter your Terms & Conditions here..."
-                />
-              </div>
-
-              <div style={styles.divider}></div>
-
-              {/* Privacy Policy */}
-              <div style={styles.legalSection}>
-                <h3 style={styles.legalTitle}>Privacy Policy</h3>
-                {settings.privacyPolicy?.lastUpdated && (
-                  <p style={styles.lastUpdated}>
-                    Last updated: {formatDate(settings.privacyPolicy.lastUpdated)}
-                  </p>
-                )}
-                <textarea
-                  value={settings.privacyPolicy?.content || ''}
-                  onChange={handlePrivacyChange}
-                  style={styles.legalTextarea}
-                  rows="12"
-                  placeholder="Enter your Privacy Policy here..."
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Save Button */}
-        <div style={styles.buttonContainer}>
-          <button 
-            type="submit" 
-            style={saving ? styles.savingButton : styles.saveButton}
-            disabled={saving}
-          >
-            {saving ? (
-              <>
-                <span style={styles.buttonSpinner}></span>
-                Saving Changes...
-              </>
-            ) : (
-              '💾 Save All Settings'
             )}
-          </button>
+
+            {/* Legal Tab */}
+            {activeTab === 'legal' && (
+              <>
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" name="requireTermsAcceptance" checked={settings.requireTermsAcceptance} onChange={handleChange} />
+                  <label>Require Terms & Privacy acceptance on registration</label>
+                </div>
+                <div>
+                  <label className="label">Terms & Conditions</label>
+                  <textarea className="input font-mono text-sm" rows="8" value={settings.termsAndConditions?.content || ''} onChange={handleTermsChange} />
+                </div>
+                <div>
+                  <label className="label">Privacy Policy</label>
+                  <textarea className="input font-mono text-sm" rows="8" value={settings.privacyPolicy?.content || ''} onChange={handlePrivacyChange} />
+                </div>
+              </>
+            )}
+          </div>
+          <div className="card-footer bg-gray-50 dark:bg-gray-800/50 flex justify-end">
+            <button type="submit" disabled={saving} className="btn-primary inline-flex items-center gap-2">
+              <Save size={16} /> {saving ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
         </div>
       </form>
-
-      {/* Settings Preview Card */}
-      <div style={styles.previewCard}>
-        <h3 style={styles.previewTitle}>🔍 Current Settings Preview</h3>
-        <div style={styles.previewGrid}>
-          <div style={styles.previewItem}>
-            <span style={styles.previewLabel}>Business Name:</span>
-            <span style={styles.previewValue}>{settings.businessName || 'Not set'}</span>
-          </div>
-          <div style={styles.previewItem}>
-            <span style={styles.previewLabel}>M-Pesa Number:</span>
-            <span style={styles.previewValue}>{settings.businessPhoneNumber || 'Not set'}</span>
-          </div>
-          <div style={styles.previewItem}>
-            <span style={styles.previewLabel}>WhatsApp:</span>
-            <span style={styles.previewValue}>{settings.whatsappNumber || 'Not set'}</span>
-          </div>
-          <div style={styles.previewItem}>
-            <span style={styles.previewLabel}>STK Push:</span>
-            <span style={settings.enableSTKPush ? styles.previewEnabled : styles.previewDisabled}>
-              {settings.enableSTKPush ? '✅ Enabled' : '❌ Disabled'}
-            </span>
-          </div>
-          <div style={styles.previewItem}>
-            <span style={styles.previewLabel}>Manual Payment:</span>
-            <span style={settings.enableManualPayment ? styles.previewEnabled : styles.previewDisabled}>
-              {settings.enableManualPayment ? '✅ Enabled' : '❌ Disabled'}
-            </span>
-          </div>
-          <div style={styles.previewItem}>
-            <span style={styles.previewLabel}>Terms Required:</span>
-            <span style={settings.requireTermsAcceptance !== false ? styles.previewEnabled : styles.previewDisabled}>
-              {settings.requireTermsAcceptance !== false ? '✅ Yes' : '❌ No'}
-            </span>
-          </div>
-        </div>
-      </div>
     </div>
   );
-};
-
-const styles = {
-  container: {
-    maxWidth: '1000px',
-    margin: '0 auto',
-    padding: '20px'
-  },
-  loadingContainer: {
-    textAlign: 'center',
-    padding: '60px',
-    backgroundColor: '#fff',
-    borderRadius: '12px'
-  },
-  spinner: {
-    margin: '0 auto 20px',
-    width: '40px',
-    height: '40px',
-    border: '3px solid #e2e8f0',
-    borderTopColor: '#667eea',
-    borderRadius: '50%',
-    animation: 'spin 1s linear infinite'
-  },
-  loadingText: {
-    color: '#718096'
-  },
-  header: {
-    marginBottom: '30px'
-  },
-  title: {
-    fontSize: '32px',
-    fontWeight: '700',
-    color: '#2d3748',
-    marginBottom: '8px'
-  },
-  subtitle: {
-    fontSize: '16px',
-    color: '#718096'
-  },
-  tabs: {
-    display: 'flex',
-    gap: '8px',
-    marginBottom: '24px',
-    backgroundColor: 'white',
-    padding: '8px',
-    borderRadius: '12px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    flexWrap: 'wrap'
-  },
-  tab: {
-    padding: '10px 20px',
-    border: 'none',
-    borderRadius: '8px',
-    backgroundColor: 'transparent',
-    color: '#718096',
-    fontSize: '14px',
-    fontWeight: '500',
-    cursor: 'pointer',
-    transition: 'all 0.3s'
-  },
-  activeTab: {
-    backgroundColor: '#667eea',
-    color: 'white'
-  },
-  successMessage: {
-    backgroundColor: '#c6f6d5',
-    color: '#22543d',
-    padding: '16px',
-    borderRadius: '8px',
-    marginBottom: '20px',
-    borderLeft: '4px solid #48bb78',
-    fontWeight: '500'
-  },
-  errorMessage: {
-    backgroundColor: '#fed7d7',
-    color: '#c53030',
-    padding: '16px',
-    borderRadius: '8px',
-    marginBottom: '20px',
-    borderLeft: '4px solid #fc8181',
-    fontWeight: '500'
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '25px'
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: '12px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-    overflow: 'hidden'
-  },
-  cardHeader: {
-    padding: '20px 24px',
-    backgroundColor: '#f8fafc',
-    borderBottom: '1px solid #e2e8f0'
-  },
-  cardTitle: {
-    fontSize: '20px',
-    fontWeight: '600',
-    color: '#2d3748',
-    marginBottom: '4px'
-  },
-  cardSubtitle: {
-    fontSize: '14px',
-    color: '#718096'
-  },
-  cardBody: {
-    padding: '24px'
-  },
-  formGroup: {
-    marginBottom: '20px',
-    flex: 1
-  },
-  formRow: {
-    display: 'flex',
-    gap: '20px'
-  },
-  label: {
-    display: 'block',
-    fontSize: '14px',
-    fontWeight: '600',
-    color: '#4a5568',
-    marginBottom: '8px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px'
-  },
-  input: {
-    width: '100%',
-    padding: '12px 16px',
-    border: '2px solid #e2e8f0',
-    borderRadius: '8px',
-    fontSize: '16px',
-    transition: 'all 0.3s',
-    outline: 'none',
-    ':focus': {
-      borderColor: '#667eea',
-      boxShadow: '0 0 0 3px rgba(102, 126, 234, 0.1)'
-    }
-  },
-  textarea: {
-    width: '100%',
-    padding: '12px 16px',
-    border: '2px solid #e2e8f0',
-    borderRadius: '8px',
-    fontSize: '16px',
-    transition: 'all 0.3s',
-    outline: 'none',
-    resize: 'vertical',
-    fontFamily: 'inherit',
-    ':focus': {
-      borderColor: '#667eea',
-      boxShadow: '0 0 0 3px rgba(102, 126, 234, 0.1)'
-    }
-  },
-  legalTextarea: {
-    width: '100%',
-    padding: '16px',
-    border: '2px solid #e2e8f0',
-    borderRadius: '8px',
-    fontSize: '14px',
-    lineHeight: '1.6',
-    transition: 'all 0.3s',
-    outline: 'none',
-    resize: 'vertical',
-    fontFamily: 'monospace',
-    ':focus': {
-      borderColor: '#667eea',
-      boxShadow: '0 0 0 3px rgba(102, 126, 234, 0.1)'
-    }
-  },
-  helpText: {
-    display: 'block',
-    fontSize: '12px',
-    color: '#a0aec0',
-    marginTop: '4px'
-  },
-  checkboxGroup: {
-    marginBottom: '16px',
-    padding: '12px',
-    backgroundColor: '#f8fafc',
-    borderRadius: '8px'
-  },
-  checkboxLabel: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '12px',
-    cursor: 'pointer'
-  },
-  checkbox: {
-    width: '20px',
-    height: '20px',
-    marginTop: '2px',
-    cursor: 'pointer',
-    accentColor: '#667eea'
-  },
-  checkboxText: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px'
-  },
-  checkboxHelp: {
-    fontSize: '13px',
-    color: '#718096',
-    fontWeight: 'normal'
-  },
-  divider: {
-    height: '1px',
-    backgroundColor: '#e2e8f0',
-    margin: '24px 0'
-  },
-  legalSection: {
-    marginBottom: '24px'
-  },
-  legalTitle: {
-    fontSize: '18px',
-    fontWeight: '600',
-    color: '#2d3748',
-    marginBottom: '8px'
-  },
-  lastUpdated: {
-    fontSize: '12px',
-    color: '#a0aec0',
-    marginBottom: '12px'
-  },
-  hoursGrid: {
-    display: 'grid',
-    gap: '12px'
-  },
-  hoursRow: {
-    display: 'grid',
-    gridTemplateColumns: '120px 1fr',
-    alignItems: 'center',
-    gap: '12px'
-  },
-  hoursLabel: {
-    fontSize: '14px',
-    fontWeight: '600',
-    color: '#4a5568',
-    textTransform: 'capitalize'
-  },
-  hoursInput: {
-    padding: '8px 12px',
-    border: '2px solid #e2e8f0',
-    borderRadius: '6px',
-    fontSize: '14px',
-    transition: 'all 0.3s',
-    outline: 'none',
-    ':focus': {
-      borderColor: '#667eea'
-    }
-  },
-  buttonContainer: {
-    textAlign: 'center',
-    marginTop: '20px'
-  },
-  saveButton: {
-    padding: '14px 32px',
-    backgroundColor: '#48bb78',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '16px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'all 0.3s',
-    boxShadow: '0 2px 4px rgba(72, 187, 120, 0.3)',
-    ':hover': {
-      backgroundColor: '#38a169',
-      transform: 'translateY(-1px)',
-      boxShadow: '0 4px 8px rgba(72, 187, 120, 0.4)'
-    }
-  },
-  savingButton: {
-    padding: '14px 32px',
-    backgroundColor: '#a0aec0',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '16px',
-    fontWeight: '600',
-    cursor: 'not-allowed',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '10px'
-  },
-  buttonSpinner: {
-    width: '18px',
-    height: '18px',
-    border: '2px solid rgba(255,255,255,0.3)',
-    borderTopColor: '#fff',
-    borderRadius: '50%',
-    animation: 'spin 1s linear infinite',
-    display: 'inline-block'
-  },
-  previewCard: {
-    marginTop: '30px',
-    padding: '20px',
-    backgroundColor: '#ebf8ff',
-    borderRadius: '12px',
-    border: '2px dashed #4299e1'
-  },
-  previewTitle: {
-    fontSize: '18px',
-    fontWeight: '600',
-    color: '#2c5282',
-    marginBottom: '16px'
-  },
-  previewGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '16px'
-  },
-  previewItem: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px'
-  },
-  previewLabel: {
-    fontSize: '12px',
-    color: '#718096',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px'
-  },
-  previewValue: {
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#2d3748'
-  },
-  previewEnabled: {
-    fontSize: '14px',
-    fontWeight: '500',
-    color: '#48bb78'
-  },
-  previewDisabled: {
-    fontSize: '14px',
-    fontWeight: '500',
-    color: '#fc8181'
-  }
 };
 
 export default SettingsPage;

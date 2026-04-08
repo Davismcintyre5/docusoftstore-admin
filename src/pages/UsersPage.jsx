@@ -12,16 +12,14 @@ const UsersPage = () => {
     try {
       const { data } = await adminApi.get('/admin/users');
       setUsers(data);
-    } catch (error) {
-      console.error('Failed to fetch users:', error);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  useEffect(() => { fetchUsers(); }, []);
 
   if (loading) return <LoadingSpinner />;
 

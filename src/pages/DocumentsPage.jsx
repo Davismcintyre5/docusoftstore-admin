@@ -17,16 +17,14 @@ const DocumentsPage = () => {
       ]);
       setDocuments(docsRes.data);
       setCategories(catsRes.data);
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   if (loading) return <LoadingSpinner />;
 

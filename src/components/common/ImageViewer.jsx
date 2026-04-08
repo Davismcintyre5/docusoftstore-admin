@@ -1,35 +1,59 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { X, ZoomIn, ZoomOut, Download } from 'lucide-react';
 
 const ImageViewer = ({ url, onClose }) => {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
+  const [zoom, setZoom] = React.useState(1);
+
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.25, 3));
+  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.25, 0.5));
+
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = url.split('/').pop() || 'screenshot.jpg';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Download failed:', error);
+    }
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: '90vw', maxHeight: '90vh', padding: 0, background: 'white', borderRadius: '24px', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white' }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Payment Screenshot</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '28px', cursor: 'pointer', color: '#a0aec0', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
-            ×
-          </button>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden animate-slide-up" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Payment Screenshot</h3>
+          <div className="flex items-center gap-2">
+            <button onClick={handleZoomOut} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+              <ZoomOut size={18} />
+            </button>
+            <span className="text-sm text-gray-500">{Math.round(zoom * 100)}%</span>
+            <button onClick={handleZoomIn} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+              <ZoomIn size={18} />
+            </button>
+            <button onClick={handleDownload} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+              <Download size={18} />
+            </button>
+            <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+              <X size={20} />
+            </button>
+          </div>
         </div>
-        <div style={{ padding: '20px', textAlign: 'center', maxHeight: '70vh', overflow: 'auto', background: '#f7fafc' }}>
-          {!imageLoaded && !imageError && (
-            <div style={{ padding: '40px', textAlign: 'center' }}>
-              <div className="spinner" style={{ margin: '0 auto' }}></div>
-              <p style={{ marginTop: '16px', color: '#718096' }}>Loading screenshot...</p>
-            </div>
-          )}
-          {imageError && (
-            <div style={{ textAlign: 'center', padding: '40px' }}>
-              <div style={{ fontSize: '64px', marginBottom: '16px' }}>🖼️</div>
-              <h3 style={{ color: '#c53030', marginBottom: '8px' }}>Failed to load image</h3>
-              <p style={{ color: '#718096', marginBottom: '16px', wordBreak: 'break-all' }}>{url}</p>
-              <p style={{ fontSize: '12px', color: '#a0aec0' }}>The screenshot file may be missing or the server cannot access it.</p>
-              <button onClick={() => { setImageError(false); setImageLoaded(false); const img = new Image(); img.onload = () => setImageLoaded(true); img.onerror = () => setImageError(true); img.src = url + '?t=' + Date.now(); }} style={{ marginTop: '16px', padding: '8px 16px', backgroundColor: '#4299e1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>🔄 Retry</button>
-            </div>
-          )}
-          <img src={url} alt="Payment Screenshot" style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', display: imageLoaded && !imageError ? 'block' : 'none' }} onLoad={() => setImageLoaded(true)} onError={() => setImageError(true)} />
+        {/* Image */}
+        <div className="p-6 overflow-auto max-h-[calc(90vh-80px)] flex justify-center bg-gray-100 dark:bg-gray-900">
+          <img 
+            src={url} 
+            alt="Payment Screenshot" 
+            style={{ transform: `scale(${zoom})`, transition: 'transform 0.2s' }}
+            className="rounded-lg shadow-lg"
+          />
         </div>
       </div>
     </div>

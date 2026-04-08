@@ -1,9 +1,15 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import adminApi from '../services/adminApi';
 
 const AdminAuthContext = createContext();
 
-export const useAdminAuth = () => useContext(AdminAuthContext);
+export const useAdminAuth = () => {
+  const context = useContext(AdminAuthContext);
+  if (!context) {
+    throw new Error('useAdminAuth must be used within AdminAuthProvider');
+  }
+  return context;
+};
 
 export const AdminAuthProvider = ({ children }) => {
   const [admin, setAdmin] = useState(null);
@@ -11,33 +17,25 @@ export const AdminAuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('adminToken'));
 
   useEffect(() => {
-    if (token) {
-      fetchAdmin();
-    } else {
-      setLoading(false);
-    }
-  }, [token]);
-
-  const fetchAdmin = async () => {
-    try {
-      const { data } = await adminApi.get('/auth/me');
-      if (data.role === 'admin') {
-        setAdmin(data);
-      } else {
+    const storedAdmin = localStorage.getItem('adminUser');
+    const storedToken = localStorage.getItem('adminToken');
+    
+    if (storedAdmin && storedToken) {
+      try {
+        setAdmin(JSON.parse(storedAdmin));
+        setToken(storedToken);
+      } catch (error) {
+        console.error('Failed to parse stored admin:', error);
         logout();
       }
-    } catch (error) {
-      console.error('Admin auth error:', error);
-      logout();
-    } finally {
-      setLoading(false);
     }
-  };
+    setLoading(false);
+  }, []);
 
-  const login = (newToken, userData) => {
-    localStorage.setItem('adminToken', newToken);
+  const login = (userToken, userData) => {
+    localStorage.setItem('adminToken', userToken);
     localStorage.setItem('adminUser', JSON.stringify(userData));
-    setToken(newToken);
+    setToken(userToken);
     setAdmin(userData);
   };
 
@@ -51,11 +49,15 @@ export const AdminAuthProvider = ({ children }) => {
   const value = {
     admin,
     token,
+    loading,
     login,
     logout,
-    isAuthenticated: !!admin,
-    loading
+    isAuthenticated: !!admin && !!token,
   };
 
-  return <AdminAuthContext.Provider value={value}>{children}</AdminAuthContext.Provider>;
+  return (
+    <AdminAuthContext.Provider value={value}>
+      {children}
+    </AdminAuthContext.Provider>
+  );
 };
