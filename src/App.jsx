@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { Toaster } from 'react-hot-toast';
 
 // Layout Components
 import AdminHeader from './components/layout/AdminHeader';
@@ -31,7 +32,7 @@ const ProtectedRoute = () => {
 
 const AppLayout = () => {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <AdminHeader />
       <div className="flex flex-1">
         <AdminSidebar />
@@ -77,6 +78,30 @@ function App() {
     >
       <AdminAuthProvider>
         <ThemeProvider>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: '#363636',
+                color: '#fff',
+              },
+              success: {
+                duration: 3000,
+                iconTheme: {
+                  primary: '#4ade80',
+                  secondary: '#fff',
+                },
+              },
+              error: {
+                duration: 4000,
+                iconTheme: {
+                  primary: '#ef4444',
+                  secondary: '#fff',
+                },
+              },
+            }}
+          />
           <AppContent />
         </ThemeProvider>
       </AdminAuthProvider>
