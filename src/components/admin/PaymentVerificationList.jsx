@@ -37,7 +37,7 @@ const PaymentVerificationList = ({ payments, onRefresh }) => {
     }
   };
 
-  // Build full image URL - works for both localhost and production
+  // Build image URL - works for production
   const getImageUrl = (screenshotUrl) => {
     if (!screenshotUrl) return null;
     
@@ -46,9 +46,8 @@ const PaymentVerificationList = ({ payments, onRefresh }) => {
       return screenshotUrl;
     }
     
-    // For relative paths, use the API base URL
-    // The API base URL already points to the backend server
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    // Use production API URL
+    const baseUrl = import.meta.env.VITE_API_URL || 'https://docusoftserver.pxxl.click';
     
     // Ensure proper formatting
     let cleanUrl = screenshotUrl;

@@ -2,9 +2,13 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+
+// Layout Components
 import AdminHeader from './components/layout/AdminHeader';
 import AdminSidebar from './components/layout/AdminSidebar';
 import AdminFooter from './components/layout/AdminFooter';
+
+// Pages
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import CategoriesPage from './pages/CategoriesPage';
@@ -14,6 +18,8 @@ import PaymentsPage from './pages/PaymentsPage';
 import OrdersPage from './pages/OrdersPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
+
+// Components
 import LoadingSpinner from './components/common/LoadingSpinner';
 
 const ProtectedRoute = () => {
@@ -63,7 +69,12 @@ const AppContent = () => {
 
 function App() {
   return (
-    <Router>
+    <Router
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <AdminAuthProvider>
         <ThemeProvider>
           <AppContent />

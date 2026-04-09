@@ -53,7 +53,7 @@ export const copyToClipboard = async (text) => {
   } catch (error) {
     console.error('Failed to copy:', error);
     return false;
-  };
+  }
 };
 
 // Download file from URL
@@ -115,4 +115,11 @@ export const getStatusText = (status) => {
     inactive: 'Inactive',
   };
   return texts[status] || status;
+};
+
+// Truncate text
+export const truncateText = (text, maxLength = 100) => {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
 };
